@@ -1,0 +1,51 @@
+name: Life Monitor
+
+on:
+  schedule:
+    - cron: '00 19 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '选择运行模式'
+        required: true
+        type: choice
+        options:
+          - 签到
+          - 死亡
+
+jobs:
+  monitor:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.13'
+
+      - name: Run life monitor
+        run: |
+          MODE="${{ github.event.inputs.mode }}"
+          if [ "$MODE" = "签到" ]; then
+            python life_monitor.py
+          elif [ "$MODE" = "死亡" ]; then
+            python life_monitor.py --force-death
+          else
+            # 定时触发：只检查不签到，超过7天自动宣告死亡
+            python life_monitor.py --auto
+          fi
+
+      - name: Commit and push
+        run: |
+          MODE="${{ github.event.inputs.mode }}"
+          MSG="${MODE:-自动签到}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md .last_run
+          git diff --cached --quiet || git commit -m "life monitor: $MSG"
+          git push
